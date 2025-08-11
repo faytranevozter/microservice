@@ -1,0 +1,27 @@
+# General
+.DS_Store
+.git
+.gitignore
+README.md
+
+# Node / Frontend
+frontend/node_modules
+frontend/.vite
+frontend/.cache
+frontend/coverage
+frontend/dist
+
+# Go build artifacts
+**/server
+**/bin
+**/*.out
+
+# Local env files (we pass values via compose env_file)
+.env
+*.env
+env/*.env
+services/*/*.env
+frontend/*.env
+gateway/*.env
+
+

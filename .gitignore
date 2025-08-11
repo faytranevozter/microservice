@@ -1,0 +1,43 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors/IDE
+.vscode/
+.idea/
+*.iml
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+frontend/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Go
+**/server
+**/*.out
+**/bin/
+**/tmp/
+
+# Env and secrets
+.env
+*.env
+env/*.env
+services/*/*.env
+frontend/*.env
+gateway/*.env
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+
+
