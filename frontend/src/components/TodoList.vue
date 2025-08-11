@@ -1,22 +1,25 @@
 <template>
   <div class="card">
     <h2>Todos</h2>
+    <div v-if="errorMessage" style="background:#3b1d2a;color:#ffb4c0;border:1px solid #7a2a3e;padding:8px 12px;border-radius:8px;margin-bottom:8px;">
+      {{ errorMessage }}
+    </div>
     <form class="row" @submit.prevent="addTodo">
       <input class="text" v-model="newTitle" placeholder="What needs to be done?" />
       <input class="text" v-model.number="userId" placeholder="user id (opsional)" style="max-width:160px" />
-      <button class="primary" type="submit">Add</button>
+      <button class="primary" type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Adding...' : 'Add' }}</button>
     </form>
     <p class="muted" style="margin-top:8px">API: {{ apiBase }}/api/todos</p>
 
     <ul style="list-style:none; padding:0; margin-top:12px; display:flex; flex-direction:column; gap:8px;">
       <li v-for="t in todos" :key="t.id" class="row" style="align-items:center;">
-        <input type="checkbox" :checked="t.completed" @change="toggle(t)" />
+        <input type="checkbox" :checked="t.completed" @change="toggle(t)" :disabled="isSubmitting" />
         <span style="flex:1">
           {{ t.title }}
           <span v-if="t.user" class="muted"> — {{ t.user.name }} &lt;{{ t.user.email }}&gt;</span>
           <span v-else-if="t.user_id" class="muted"> — user #{{ t.user_id }}</span>
         </span>
-        <button class="ghost" @click="remove(t)">Delete</button>
+        <button class="ghost" @click="remove(t)" :disabled="isSubmitting">Delete</button>
       </li>
     </ul>
   </div>
@@ -35,32 +38,81 @@ const http = axios.create({ baseURL: apiBase })
 const todos = ref<Todo[]>([])
 const newTitle = ref('')
 const userId = ref<number | undefined>()
+const errorMessage = ref('')
+const isSubmitting = ref(false)
 
 async function load() {
-  const { data } = await http.get('/api/todos', { params: { include_user: true } })
-  todos.value = data
+  try {
+    const { data } = await http.get('/api/todos', { params: { include_user: true } })
+    todos.value = data
+  } catch (e: any) {
+    errorMessage.value = extractError(e)
+  }
 }
 
 async function addTodo() {
+  errorMessage.value = ''
   const title = newTitle.value.trim()
-  if (!title) return
-  await http.post('/api/todos', { title, user_id: userId.value })
-  newTitle.value = ''
-  userId.value = undefined
-  await load()
+  if (!title) {
+    errorMessage.value = 'Title wajib diisi.'
+    return
+  }
+  if (userId.value !== undefined && (isNaN(userId.value as number) || (userId.value as number) <= 0)) {
+    errorMessage.value = 'User ID harus angka positif.'
+    return
+  }
+  isSubmitting.value = true
+  try {
+    await http.post('/api/todos', { title, user_id: userId.value })
+    newTitle.value = ''
+    userId.value = undefined
+    await load()
+  } catch (e: any) {
+    errorMessage.value = extractError(e)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 async function toggle(t: Todo) {
-  await http.put(`/api/todos/${t.id}`, { completed: !t.completed })
-  await load()
+  errorMessage.value = ''
+  isSubmitting.value = true
+  try {
+    await http.put(`/api/todos/${t.id}`, { completed: !t.completed })
+    await load()
+  } catch (e: any) {
+    errorMessage.value = extractError(e)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 async function remove(t: Todo) {
-  await http.delete(`/api/todos/${t.id}`)
-  await load()
+  errorMessage.value = ''
+  isSubmitting.value = true
+  try {
+    await http.delete(`/api/todos/${t.id}`)
+    await load()
+  } catch (e: any) {
+    errorMessage.value = extractError(e)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 onMounted(load)
+
+function extractError(err: any): string {
+  if (!err) return 'Terjadi kesalahan tak terduga.'
+  const res = err.response
+  if (res && res.data) {
+    if (typeof res.data === 'string') return res.data
+    if (res.data.error) return String(res.data.error)
+    try { return JSON.stringify(res.data) } catch { /* noop */ }
+  }
+  if (err.message) return String(err.message)
+  return 'Terjadi kesalahan.'
+}
 </script>
 
 

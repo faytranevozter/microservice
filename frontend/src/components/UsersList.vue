@@ -1,10 +1,13 @@
 <template>
   <div class="card">
     <h2>Users</h2>
+    <div v-if="errorMessage" style="background:#3b1d2a;color:#ffb4c0;border:1px solid #7a2a3e;padding:8px 12px;border-radius:8px;margin-bottom:8px;">
+      {{ errorMessage }}
+    </div>
     <form class="row" @submit.prevent="addUser">
       <input class="text" v-model="email" placeholder="email" />
       <input class="text" v-model="name" placeholder="name" />
-      <button class="primary" type="submit">Add</button>
+      <button class="primary" type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Adding...' : 'Add' }}</button>
     </form>
     <p class="muted" style="margin-top:8px">API: {{ apiBase }}/api/users</p>
     <ul style="list-style:none; padding:0; margin-top:12px; display:flex; flex-direction:column; gap:8px;">
@@ -27,23 +30,57 @@ const http = axios.create({ baseURL: apiBase })
 const users = ref<User[]>([])
 const email = ref('')
 const name = ref('')
+const errorMessage = ref('')
+const isSubmitting = ref(false)
 
 async function load() {
-  const { data } = await http.get('/api/users')
-  users.value = data
+  try {
+    const { data } = await http.get('/api/users')
+    users.value = data
+  } catch (e: any) {
+    errorMessage.value = extractError(e)
+  }
 }
 
 async function addUser() {
+  errorMessage.value = ''
   const e = email.value.trim()
   const n = name.value.trim()
-  if (!e || !n) return
-  await http.post('/api/users', { email: e, name: n })
-  email.value = ''
-  name.value = ''
-  await load()
+  if (!e || !n) {
+    errorMessage.value = 'Email dan nama wajib diisi.'
+    return
+  }
+  // validasi email sederhana
+  if (!/^\S+@\S+\.\S+$/.test(e)) {
+    errorMessage.value = 'Format email tidak valid.'
+    return
+  }
+  isSubmitting.value = true
+  try {
+    await http.post('/api/users', { email: e, name: n })
+    email.value = ''
+    name.value = ''
+    await load()
+  } catch (er: any) {
+    errorMessage.value = extractError(er)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 onMounted(load)
+
+function extractError(err: any): string {
+  if (!err) return 'Terjadi kesalahan tak terduga.'
+  const res = err.response
+  if (res && res.data) {
+    if (typeof res.data === 'string') return res.data
+    if (res.data.error) return String(res.data.error)
+    try { return JSON.stringify(res.data) } catch { /* noop */ }
+  }
+  if (err.message) return String(err.message)
+  return 'Terjadi kesalahan.'
+}
 </script>
 
 
