@@ -11,15 +11,17 @@
     </form>
     <p class="muted" style="margin-top:8px">API: {{ apiBase }}/api/todos</p>
 
-    <ul style="list-style:none; padding:0; margin-top:12px; display:flex; flex-direction:column; gap:8px;">
-      <li v-for="t in todos" :key="t.id" class="row" style="align-items:center;">
-        <input type="checkbox" :checked="t.completed" @change="toggle(t)" :disabled="isSubmitting" />
-        <span style="flex:1">
-          {{ t.title }}
-          <span v-if="t.user" class="muted"> — {{ t.user.name }} &lt;{{ t.user.email }}&gt;</span>
-          <span v-else-if="t.user_id" class="muted"> — user #{{ t.user_id }}</span>
-        </span>
-        <button class="ghost" @click="remove(t)" :disabled="isSubmitting">Delete</button>
+    <ul class="todo-list">
+      <li v-for="t in todos" :key="t.id" class="todo-item">
+        <label class="todo-left">
+          <input type="checkbox" :checked="t.completed" @change="toggle(t)" :disabled="isSubmitting" />
+          <span class="todo-title" :class="{ completed: t.completed }">{{ t.title }}</span>
+        </label>
+        <div class="todo-meta">
+          <span v-if="t.user" class="muted">{{ t.user.name }} &lt;{{ t.user.email }}&gt;</span>
+          <span v-else-if="t.user_id" class="muted">user #{{ t.user_id }}</span>
+          <button class="ghost" @click="remove(t)" :disabled="isSubmitting">Delete</button>
+        </div>
       </li>
     </ul>
   </div>
@@ -114,5 +116,13 @@ function extractError(err: any): string {
   return 'Terjadi kesalahan.'
 }
 </script>
+
+<style scoped>
+.todo-list { list-style: none; padding: 0; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.todo-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 10px; background: var(--panel); }
+.todo-left { display: flex; align-items: center; gap: 10px; }
+.todo-title { font-weight: 500; }
+.todo-meta { display: flex; align-items: center; gap: 8px; }
+</style>
 
 
