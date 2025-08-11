@@ -6,7 +6,14 @@
     </div>
     <form class="row" @submit.prevent="addTodo">
       <input class="text" v-model="newTitle" placeholder="What needs to be done?" />
-      <input class="text" v-model.number="userId" placeholder="user id (opsional)" style="max-width:160px" />
+      <div class="select-wrap">
+        <select class="select" v-model="userIdStr">
+          <option value="">Tanpa user</option>
+          <option v-for="u in users" :key="u.id" :value="String(u.id)">
+            {{ u.name }} &lt;{{ u.email }}&gt;
+          </option>
+        </select>
+      </div>
       <button class="primary" type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Adding...' : 'Add' }}</button>
     </form>
     <p class="muted" style="margin-top:8px">API: {{ apiBase }}/api/todos</p>
@@ -38,8 +45,9 @@ const apiBase = (import.meta as any).env.VITE_API_BASE || 'http://localhost:8000
 const http = axios.create({ baseURL: apiBase })
 
 const todos = ref<Todo[]>([])
+const users = ref<User[]>([])
 const newTitle = ref('')
-const userId = ref<number | undefined>()
+const userIdStr = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 
@@ -52,6 +60,16 @@ async function load() {
   }
 }
 
+async function loadUsers() {
+  try {
+    const { data } = await http.get('/api/users')
+    users.value = data
+  } catch (e: any) {
+    // tampilkan di bar error, tapi tidak blokir todo list
+    errorMessage.value = extractError(e)
+  }
+}
+
 async function addTodo() {
   errorMessage.value = ''
   const title = newTitle.value.trim()
@@ -59,15 +77,16 @@ async function addTodo() {
     errorMessage.value = 'Title wajib diisi.'
     return
   }
-  if (userId.value !== undefined && (isNaN(userId.value as number) || (userId.value as number) <= 0)) {
+  const uid = userIdStr.value.trim() === '' ? undefined : Number(userIdStr.value)
+  if (uid !== undefined && (!Number.isInteger(uid) || uid <= 0)) {
     errorMessage.value = 'User ID harus angka positif.'
     return
   }
   isSubmitting.value = true
   try {
-    await http.post('/api/todos', { title, user_id: userId.value })
+    await http.post('/api/todos', { title, user_id: uid })
     newTitle.value = ''
-    userId.value = undefined
+    userIdStr.value = ''
     await load()
   } catch (e: any) {
     errorMessage.value = extractError(e)
@@ -102,7 +121,7 @@ async function remove(t: Todo) {
   }
 }
 
-onMounted(load)
+onMounted(() => { load(); loadUsers() })
 
 function extractError(err: any): string {
   if (!err) return 'Terjadi kesalahan tak terduga.'
@@ -118,11 +137,39 @@ function extractError(err: any): string {
 </script>
 
 <style scoped>
+.row { align-items: center; }
 .todo-list { list-style: none; padding: 0; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .todo-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 10px; background: var(--panel); }
 .todo-left { display: flex; align-items: center; gap: 10px; }
 .todo-title { font-weight: 500; }
 .todo-meta { display: flex; align-items: center; gap: 8px; }
+
+/* Select control styled to match inputs */
+.select-wrap { position: relative; min-width: 260px; }
+.select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 8px 36px 8px 12px;
+  height: 40px;
+  line-height: 1.2;
+  font-size: 16px;
+}
+.select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  margin-top: -3px;
+  border-width: 6px 5px 0 5px;
+  border-style: solid;
+  border-color: var(--muted) transparent transparent transparent;
+  pointer-events: none;
+}
 </style>
 
 
