@@ -1,0 +1,39 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: todo-service
+    url: http://todo-service:8081
+    routes:
+      - name: todo-route
+        paths:
+          - /api/todos
+        strip_path: false
+  - name: users-service
+    url: http://users-service:8082
+    routes:
+      - name: users-route
+        paths:
+          - /api/users
+        strip_path: false
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      headers:
+        - "*"
+      credentials: false
+      exposed_headers:
+        - "*"
+      max_age: 3600
+      preflight_continue: false
+
+

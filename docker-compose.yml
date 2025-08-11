@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    env_file:
+      - ./env/db.env
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  todo-service:
+    build: ./services/todo-service
+    env_file:
+      - ./services/todo-service/app.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  users-service:
+    build: ./services/users-service
+    env_file:
+      - ./services/users-service/app.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  kong:
+    image: kong:3.6
+    depends_on:
+      - todo-service
+      - users-service
+    env_file:
+      - ./gateway/kong.env
+    volumes:
+      - ./gateway/kong.yml:/usr/local/kong/declarative/kong.yml:ro
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./frontend/app.env
+    depends_on:
+      - kong
+
+volumes:
+  mysql_data:
+
