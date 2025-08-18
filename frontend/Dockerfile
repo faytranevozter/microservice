@@ -3,7 +3,12 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci || npm install
 COPY . .
-# Build with Vite; VITE_API_BASE resolved at build time if provided, otherwise defaults in code
+# If an app.env file exists in the frontend folder, copy it to .env.production
+# so Vite/dotenv picks up variables at build time. This allows injecting
+# VITE_... variables when building the image (e.g. VITE_API_BASE).
+RUN if [ -f ./app.env ]; then cp ./app.env .env.production; fi
+
+# Build with Vite; VITE_API_BASE (and other VITE_* vars) will be resolved at build time
 RUN npm run build
 
 FROM nginx:1.27-alpine
