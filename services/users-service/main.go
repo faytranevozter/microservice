@@ -17,6 +17,7 @@ type User struct {
 	ID        int64     `json:"id"`
 	Email     string    `json:"email"`
 	Name      string    `json:"name"`
+	Password  string    `json:"password,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -37,6 +38,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/users", server.handleUsers)
 	mux.HandleFunc("/api/users/", server.handleUserByID)
+	mux.HandleFunc("/api/login", server.handleLogin)
 
 	addr := ":8082"
 	if v := os.Getenv("SERVICE_PORT"); v != "" {
@@ -50,6 +52,11 @@ func main() {
 
 func withCommonMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
@@ -88,7 +95,17 @@ func migrate(db *sql.DB) error {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;`
 	_, err := db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Add password column if it doesn't exist
+	_, err = db.Exec("ALTER TABLE users ADD COLUMN password VARCHAR(255) DEFAULT 'password123'")
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Server) handleUsers(w http.ResponseWriter, r *http.Request) {
@@ -178,8 +195,9 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
-		Email string `json:"email"`
-		Name  string `json:"name"`
+		Email    string `json:"email"`
+		Name     string `json:"name"`
+		Password string `json:"password,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -191,7 +209,14 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "email and name are required"})
 		return
 	}
-	res, err := s.db.Exec("INSERT INTO users (email, name) VALUES (?, ?)", payload.Email, payload.Name)
+	
+	// Use default password if not provided (for backwards compatibility)
+	password := payload.Password
+	if strings.TrimSpace(password) == "" {
+		password = "password123"
+	}
+	
+	res, err := s.db.Exec("INSERT INTO users (email, name, password) VALUES (?, ?, ?)", payload.Email, payload.Name, password)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -214,4 +239,70 @@ func getenvDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var payload struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid json"})
+		return
+	}
+
+	if strings.TrimSpace(payload.Email) == "" || strings.TrimSpace(payload.Password) == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "email and password are required"})
+		return
+	}
+
+	var u User
+	row := s.db.QueryRow("SELECT id, email, name, password, created_at FROM users WHERE email = ?", payload.Email)
+	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Password, &u.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid email or password"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Simple password check (in production, use bcrypt or similar)
+	if u.Password != payload.Password {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid email or password"})
+		return
+	}
+
+	// Return user data without password
+	response := struct {
+		ID        int64     `json:"id"`
+		Email     string    `json:"email"`
+		Name      string    `json:"name"`
+		CreatedAt time.Time `json:"created_at"`
+		Success   bool      `json:"success"`
+	}{
+		ID:        u.ID,
+		Email:     u.Email,
+		Name:      u.Name,
+		CreatedAt: u.CreatedAt,
+		Success:   true,
+	}
+
+	_ = json.NewEncoder(w).Encode(response)
 }
