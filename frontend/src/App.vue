@@ -6,13 +6,15 @@
       <nav class="tabs">
         <button class="tab" :class="{ active: activeTab === 'todos' }" @click="activeTab = 'todos'">Todos</button>
         <button class="tab" :class="{ active: activeTab === 'users' }" @click="activeTab = 'users'">Users</button>
+        <button class="tab" :class="{ active: activeTab === 'login' }" @click="activeTab = 'login'">Login</button>
       </nav>
       <button class="theme-toggle" @click="toggleTheme">{{ theme === 'dark' ? 'Light' : 'Dark' }} mode</button>
     </header>
 
     <main class="container">
       <TodoList v-if="activeTab === 'todos'" />
-      <UsersList v-else />
+      <UsersList v-else-if="activeTab === 'users'" />
+      <LoginForm v-else-if="activeTab === 'login'" />
     </main>
   </div>
   
@@ -22,8 +24,9 @@
 import { onMounted, ref } from 'vue'
 import TodoList from './components/TodoList.vue'
 import UsersList from './components/UsersList.vue'
+import LoginForm from './components/LoginForm.vue'
 
-const activeTab = ref<'todos' | 'users'>('todos')
+const activeTab = ref<'todos' | 'users' | 'login'>('todos')
 const theme = ref<'dark' | 'light'>('dark')
 
 function applyTheme(t: 'dark' | 'light') {
